@@ -1,0 +1,170 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── SynthCity × GitCity Design Tokens ── */
+:root {
+  --bg: #050508;
+  --surface: rgba(10, 10, 20, 0.7);
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-glow: rgba(0, 255, 255, 0.15);
+  --warm: #f1f5f9;
+  --muted: #94a3b8;
+  --dim: #475569;
+  --cyan: #22d3ee;
+  --indigo: #818cf8;
+  --pink: #f472b6;
+  --gold: #fbbf24;
+  --green: #4ade80;
+  --red: #f87171;
+}
+
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--warm);
+  -webkit-font-smoothing: antialiased;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.bg-bg {
+  background: var(--bg);
+}
+
+.text-warm {
+  color: var(--warm);
+}
+
+.font-pixel {
+  font-family: "JetBrains Mono", "Roboto Mono", monospace;
+}
+
+/* ── Premium Glass Panel (1px sophisticated border) ── */
+.panel {
+  background: var(--surface);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+}
+
+.panel-glow {
+  box-shadow: 0 0 25px rgba(0, 255, 255, 0.03),
+              inset 0 0 1px 1px rgba(255, 255, 255, 0.05);
+}
+
+/* ── Tactile Button (GitCity btn-press) ── */
+.btn-press {
+  background: var(--surface);
+  border: 3px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--warm);
+  font-family: "Silkscreen", monospace;
+  font-size: 10px;
+  padding: 8px 16px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  transition: all 0.1s ease;
+  position: relative;
+  user-select: none;
+}
+
+.btn-press:hover {
+  background: rgba(0, 255, 255, 0.08);
+  border-color: var(--cyan);
+  color: var(--cyan);
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.15);
+}
+
+.btn-press:active {
+  transform: scale(0.96);
+}
+
+/* ── Lore Ticker ── */
+@keyframes ticker-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+.animate-ticker {
+  animation: ticker-scroll 80s linear infinite;
+}
+
+/* ── Pulse Badge ── */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* ── Status Indicators ── */
+.status-live {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+  display: inline-block;
+}
+
+.status-warn {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: 0 0 6px var(--red);
+  display: inline-block;
+}
+
+/* ── Scanlines ── */
+.scanlines::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.04) 2px,
+    rgba(0, 0, 0, 0.04) 4px
+  );
+  z-index: 100;
+}
+
+/* ── Progress bar fill ── */
+.progress-fill {
+  background: linear-gradient(90deg, var(--indigo), var(--cyan));
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+/* ── Utility ── */
+.text-cyan { color: var(--cyan); }
+.text-pink { color: var(--pink); }
+.text-gold { color: var(--gold); }
+.text-green { color: var(--green); }
+.text-red { color: var(--red); }
+.text-muted { color: var(--muted); }
+.text-dim { color: var(--dim); }
+.border-main { border-color: var(--border-color); }
+
+/* ── Scrollbar Hide ── */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+

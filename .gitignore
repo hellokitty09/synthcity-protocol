@@ -1,0 +1,43 @@
+# ═══ Dependencies ═══
+node_modules/
+.pnp.*
+.yarn/
+
+# ═══ Environment / Secrets ═══
+.env
+.env.local
+.env.production
+.env.*.local
+backend/.env
+frontend/.env
+frontend/.env.local
+
+# ═══ Build Artifacts ═══
+frontend/.next/
+frontend/out/
+backend/dist/
+*.tsbuildinfo
+
+# ═══ Database ═══
+*.db
+*.sqlite
+*.sqlite3
+
+# ═══ Docker ═══
+docker-compose.override.yml
+
+# ═══ OS ═══
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# ═══ IDE ═══
+.vscode/
+.idea/
+*.code-workspace
+
+# ═══ Logs ═══
+*.log
+npm-debug.log*

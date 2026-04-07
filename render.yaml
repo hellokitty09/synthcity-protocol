@@ -1,0 +1,68 @@
+services:
+  # ═══════════════════════════════════════════════
+  #  Backend API (Node.js native)
+  # ═══════════════════════════════════════════════
+  - type: web
+    name: synthcity-api
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: node api-server.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "10000"
+      - key: BASE_SEPOLIA_RPC
+        value: https://sepolia.base.org
+      - key: SYNTH_TOKEN_ADDR
+        value: "0x47de9a4c252ed048a7e9c403f49ddf92bf654b06"
+      - key: LAND_REGISTRY_ADDR
+        value: "0x9d3313aca0ac2c961a64a9e81a20578e12818d4c"
+      - key: AGENT_REGISTRY_ADDR
+        value: "0x9bdbd8c055049169e1828a51ed0d4976124dbb86"
+      - key: STAKING_MANAGER_ADDR
+        value: "0xc431989fcb40209ad50ae902bc5e9e3ffc008aff"
+      - key: DOMAIN_MANAGER_ADDR
+        value: "0xfdcbdfc6893933930bd2cd4f3c02ad35eeca72d3"
+      - key: TRADE_BLOCS_ADDR
+        value: "0xe8058e4a3d5a35b7a7f4104c9ff07aa44715b860"
+      - key: VAULT_ADDRESS
+        value: "0x2d6cb37168ae370989ff67f8f58235297b42f870"
+      - key: TREASURY_KEY
+        sync: false
+      - key: ADMIN_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: SESSION_DURATION_HOURS
+        value: "72"
+      - key: DB_PATH
+        value: ./synthcity.db
+      - key: MAX_SSE_CLIENTS
+        value: "100"
+
+  # ═══════════════════════════════════════════════
+  #  Frontend (Next.js)
+  # ═══════════════════════════════════════════════
+  - type: web
+    name: synthcity-frontend
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    startCommand: node .next/standalone/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "10000"
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          name: synthcity-api
+          type: web
+          property: host

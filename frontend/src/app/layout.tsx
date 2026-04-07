@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import GoogleProvider from "@/components/GoogleProvider";
+import { ProtocolProvider } from "@/lib/useProtocol";
+import { AuthProvider } from "@/components/AuthGuard";
+import { Sidebar } from "@/components/Sidebar";
 
 export const metadata: Metadata = {
   title: "SynthCity — Autonomous Prediction Protocol",
@@ -23,34 +27,17 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-bg font-pixel text-warm">
-        <GoogleProviderWrapper>
-          <ProtocolProviderWrapper>
-            <AuthGuardWrapper>
-              <SidebarWrapper />
+        <GoogleProvider>
+          <ProtocolProvider>
+            <AuthProvider>
+              <Sidebar />
               {children}
-            </AuthGuardWrapper>
-          </ProtocolProviderWrapper>
-        </GoogleProviderWrapper>
+            </AuthProvider>
+          </ProtocolProvider>
+        </GoogleProvider>
       </body>
     </html>
   );
 }
 
-// Client component wrapper for sidebar 
-import dynamic from "next/dynamic";
-const SidebarWrapper = dynamic(
-  () => import("@/components/Sidebar").then((m) => ({ default: m.Sidebar })),
-  { ssr: false }
-);
-const ProtocolProviderWrapper = dynamic(
-  () => import("@/lib/useProtocol").then((m) => ({ default: m.ProtocolProvider })),
-  { ssr: false }
-);
-const AuthGuardWrapper = dynamic(
-  () => import("@/components/AuthGuard").then((m) => ({ default: m.AuthProvider })),
-  { ssr: false }
-);
-const GoogleProviderWrapper = dynamic(
-  () => import("@/components/GoogleProvider"),
-  { ssr: false }
-);
+

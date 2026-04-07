@@ -63,7 +63,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Must wait for mount before accessing localStorage/router
   useEffect(() => { setMounted(true); }, []);
 
   // Validate existing token on mount
@@ -74,7 +73,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false);
       return;
     }
-    // Verify token with server
     fetch(`${API_URL}/api/auth/me`, {
       headers: { Authorization: `Bearer ${storedToken}` },
     })
@@ -94,11 +92,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Redirect if not authenticated on protected routes
   useEffect(() => {
-    if (isLoading) return;
+    if (!mounted || isLoading) return;
     if (!PUBLIC_ROUTES.includes(pathname) && !user) {
-      router.replace("/signup");
+      router.replace("/");
     }
-  }, [isLoading, user, pathname, router]);
+  }, [mounted, isLoading, user, pathname, router]);
 
   const login = useCallback(async (email: string, password: string) => {
     try {
@@ -150,23 +148,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.push("/");
   }, [router]);
 
-  // Show loading screen while checking auth
-  if (isLoading) {
+  const isProtectedRoute = !PUBLIC_ROUTES.includes(pathname);
+
+  // ─────────────────────────────────────────────
+  // SECURITY: Block ALL rendering until auth state is determined
+  // Prevents flash of protected content during hydration
+  // ─────────────────────────────────────────────
+  if (!mounted || isLoading) {
     return (
-      <div className="min-h-screen bg-[#030308] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-8 h-8 border-[3px] border-cyan/40 border-t-cyan rounded-full animate-spin" />
-          <p className="text-[10px] text-cyan uppercase tracking-widest font-mono blink">
-            VERIFYING CREDENTIALS...
-          </p>
-        </div>
-      </div>
+      <AuthContext.Provider value={{ user: null, token: null, isLoading: true, isAuthenticated: false, login, signup, logout }}>
+        {isProtectedRoute ? (
+          <div className="min-h-screen bg-[#030308] flex items-center justify-center">
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-8 h-8 border-[3px] border-cyan/40 border-t-cyan rounded-full animate-spin" />
+              <p className="text-[10px] text-cyan uppercase tracking-widest font-mono blink">
+                VERIFYING CREDENTIALS...
+              </p>
+            </div>
+          </div>
+        ) : children}
+      </AuthContext.Provider>
     );
   }
 
-  // Block protected routes
-  if (!PUBLIC_ROUTES.includes(pathname) && !user) {
-    return null;
+  // SECURITY: Block protected routes entirely — no content leak
+  if (isProtectedRoute && !user) {
+    return (
+      <AuthContext.Provider value={{ user: null, token: null, isLoading: false, isAuthenticated: false, login, signup, logout }}>
+        <div className="min-h-screen bg-[#030308] flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <p className="text-[10px] text-red-400 uppercase tracking-widest font-mono">
+              ACCESS DENIED — REDIRECTING...
+            </p>
+          </div>
+        </div>
+      </AuthContext.Provider>
+    );
   }
 
   return (

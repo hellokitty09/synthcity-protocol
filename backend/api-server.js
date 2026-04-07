@@ -17,10 +17,13 @@ const app = express();
 //  PRODUCTION MIDDLEWARE
 // ═══════════════════════════════════════════════
 
-const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:3000').split(',');
+const CORS_RAW = process.env.CORS_ORIGINS || 'http://localhost:3000';
+const corsOptions = CORS_RAW === '*'
+    ? { origin: true, credentials: true }  // reflect request origin
+    : { origin: CORS_RAW.split(',').map(s => s.trim()), credentials: true };
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(compression());
-app.use(cors({ origin: ALLOWED_ORIGINS, credentials: true }));
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '100kb' }));
 
 const writeLimiter = rateLimit({

@@ -56,14 +56,19 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const PUBLIC_ROUTES = ["/", "/signup", "/login"];
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Must wait for mount before accessing localStorage/router
+  useEffect(() => { setMounted(true); }, []);
+
   // Validate existing token on mount
   useEffect(() => {
+    if (!mounted) return;
     const storedToken = localStorage.getItem("synthcity_token");
     if (!storedToken) {
       setIsLoading(false);
@@ -85,7 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem("synthcity_token");
       })
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [mounted]);
 
   // Redirect if not authenticated on protected routes
   useEffect(() => {

@@ -425,7 +425,7 @@ async function runAutoAgentCycle() {
             cycle: cycleNum,
             taxRate: cycleManager.taxRateName,
             agentCount: cycleManager.reputations.size,
-            intelligenceMode: useLLM ? 'LLM_SOVEREIGN' : 'RULE_BASED',
+            intelligenceMode: 'BYOC_PROTOCOL_ONLY',
             intelAge: Math.round((Date.now() - intelBridge.getSnapshot().lastRefresh) / 1000),
         });
 

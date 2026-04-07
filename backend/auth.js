@@ -10,8 +10,11 @@ const {
     createSession, getSession, deleteSession,
     verifyPassword,
 } = require('./db');
+const { OAuth2Client } = require('google-auth-library');
 
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY || null;
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || null;
+const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 
 // ═══════════════════════════════════════════════
 //  AUTH ROUTES (mount on Express app)
@@ -124,6 +127,62 @@ function mountAuthRoutes(app) {
      * GET /api/auth/me
      * Returns current user info from session token.
      */
+    /**
+     * POST /api/auth/google
+     * Body: { credential } — the Google ID token from GIS
+     */
+    app.post('/api/auth/google', async (req, res) => {
+        try {
+            if (!googleClient) {
+                return res.status(501).json({ error: 'Google Sign-In not configured' });
+            }
+
+            const { credential } = req.body;
+            if (!credential) {
+                return res.status(400).json({ error: 'Google credential is required' });
+            }
+
+            // Verify the Google ID token
+            const ticket = await googleClient.verifyIdToken({
+                idToken: credential,
+                audience: GOOGLE_CLIENT_ID,
+            });
+            const payload = ticket.getPayload();
+            const email = payload.email;
+            const displayName = payload.name || email.split('@')[0];
+
+            // Find or create user
+            let user = getUserByEmail(email);
+            if (!user) {
+                // Auto-signup Google users as spectators
+                const userId = createUser({
+                    email,
+                    password: require('crypto').randomBytes(32).toString('hex'), // random password (never used)
+                    displayName,
+                    role: 'spectator',
+                });
+                user = getUserById(userId);
+            }
+
+            const session = createSession(user.id, user.role);
+
+            res.json({
+                token: session.token,
+                expiresAt: session.expiresAt,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    display_name: user.display_name,
+                    role: user.role,
+                    wallet_address: user.wallet_address || null,
+                },
+            });
+        } catch (e) {
+            console.error('[Auth] Google sign-in error:', e.message);
+            res.status(401).json({ error: 'Invalid Google token' });
+        }
+    });
+
     app.get('/api/auth/me', (req, res) => {
         const token = extractToken(req);
         if (!token) return res.status(401).json({ error: 'No token provided' });

@@ -6,6 +6,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/components/AuthGuard";
+import { GoogleLogin } from "@react-oauth/google";
 
 type Role = "spectator" | "agent";
 
@@ -43,6 +45,23 @@ export default function LoginPage() {
   const [role, setRole] = useState<Role>("spectator");
   const [showPassword, setShowPassword] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const { login: traditionalLogin, googleLogin } = useAuth();
+  
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    if (credentialResponse.credential) {
+      setConnecting(true);
+      const res = await googleLogin(credentialResponse.credential);
+      if (res.success) {
+        router.push('/dashboard');
+      } else {
+        alert(res.error || 'Google login failed');
+        setConnecting(false);
+      }
+    }
+  };
 
   const handleWalletConnect = () => {
     setConnecting(true);
@@ -53,9 +72,15 @@ export default function LoginPage() {
     }, 2000);
   };
 
-  const handleSpectatorLogin = () => {
-     localStorage.setItem('synthcity_auth_token', 'spectator_session');
-     router.push('/dashboard');
+  const handleSpectatorLogin = async () => {
+     if(!email || !password) return alert("Email and password required.");
+     setConnecting(true);
+     const res = await traditionalLogin(email, password);
+     if(res.success) router.push('/dashboard');
+     else {
+       alert(res.error || "Login fail");
+       setConnecting(false);
+     }
   };
 
   return (
@@ -131,6 +156,8 @@ export default function LoginPage() {
                     <label className="text-[7px] text-dim uppercase tracking-wider">Email</label>
                     <input
                       type="email"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
                       placeholder="spectator@synthcity.eth"
                       className="w-full mt-1 px-3 py-[10px] bg-[#0a0a15] border-2 border-[#1a1a2a] text-[10px] text-warm placeholder:text-[#2a2a3a] focus:border-cyan/40 focus:outline-none focus:shadow-[0_0_12px_rgba(0,255,255,0.1)] transition-all"
                     />
@@ -142,6 +169,8 @@ export default function LoginPage() {
                     <div className="relative mt-1">
                       <input
                         type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
                         placeholder="••••••••••"
                         className="w-full px-3 py-[10px] bg-[#0a0a15] border-2 border-[#1a1a2a] text-[10px] text-warm placeholder:text-[#2a2a3a] focus:border-cyan/40 focus:outline-none focus:shadow-[0_0_12px_rgba(0,255,255,0.1)] transition-all pr-10"
                       />
@@ -178,9 +207,14 @@ export default function LoginPage() {
 
                   {/* Social logins */}
                   <div className="grid grid-cols-2 gap-2">
-                    <button className="py-2 border-2 border-[#1a1a2a] text-[8px] text-muted hover:border-[#2a2a3a] hover:text-warm transition-all flex items-center justify-center gap-2">
-                      <span className="text-xs">G</span> Google
-                    </button>
+                    <div className="flex items-center justify-center overflow-hidden hover:opacity-90">
+                       <GoogleLogin 
+                          onSuccess={handleGoogleSuccess} 
+                          onError={() => alert('Google login error')} 
+                          theme="filled_black" 
+                          text="signin_with" 
+                       />
+                    </div>
                     <button className="py-2 border-2 border-[#1a1a2a] text-[8px] text-muted hover:border-[#2a2a3a] hover:text-warm transition-all flex items-center justify-center gap-2">
                       <span className="text-xs">𝕏</span> Twitter
                     </button>

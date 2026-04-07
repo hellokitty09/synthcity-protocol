@@ -23,12 +23,14 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-bg font-pixel text-warm">
-        <ProtocolProviderWrapper>
-          <AuthGuardWrapper>
-            <SidebarWrapper />
-            {children}
-          </AuthGuardWrapper>
-        </ProtocolProviderWrapper>
+        <GoogleProviderWrapper>
+          <ProtocolProviderWrapper>
+            <AuthGuardWrapper>
+              <SidebarWrapper />
+              {children}
+            </AuthGuardWrapper>
+          </ProtocolProviderWrapper>
+        </GoogleProviderWrapper>
       </body>
     </html>
   );
@@ -46,5 +48,9 @@ const ProtocolProviderWrapper = dynamic(
 );
 const AuthGuardWrapper = dynamic(
   () => import("@/components/AuthGuard").then((m) => ({ default: m.AuthProvider })),
+  { ssr: false }
+);
+const GoogleProviderWrapper = dynamic(
+  () => import("@/components/GoogleProvider"),
   { ssr: false }
 );

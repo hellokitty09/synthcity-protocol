@@ -22,6 +22,7 @@ interface AuthState {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signup: (data: SignupData) => Promise<{ success: boolean; error?: string }>;
+  googleLogin: (credential: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
 }
 
@@ -43,6 +44,7 @@ const AuthContext = createContext<AuthState>({
   isAuthenticated: false,
   login: async () => ({ success: false }),
   signup: async () => ({ success: false }),
+  googleLogin: async () => ({ success: false }),
   logout: () => {},
 });
 
@@ -134,6 +136,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const googleLogin = useCallback(async (credential: string) => {
+    try {
+      const res = await fetch(`${API_URL}/api/auth/google`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error };
+      localStorage.setItem("synthcity_token", data.token);
+      setToken(data.token);
+      setUser(data.user);
+      return { success: true };
+    } catch {
+      return { success: false, error: "Network error" };
+    }
+  }, []);
+
   const logout = useCallback(() => {
     const t = localStorage.getItem("synthcity_token");
     if (t) {
@@ -156,7 +176,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // ─────────────────────────────────────────────
   if (!mounted || isLoading) {
     return (
-      <AuthContext.Provider value={{ user: null, token: null, isLoading: true, isAuthenticated: false, login, signup, logout }}>
+      <AuthContext.Provider value={{ user: null, token: null, isLoading: true, isAuthenticated: false, login, signup, googleLogin, logout }}>
         {isProtectedRoute ? (
           <div className="min-h-screen bg-[#030308] flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">
@@ -174,7 +194,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // SECURITY: Block protected routes entirely — no content leak
   if (isProtectedRoute && !user) {
     return (
-      <AuthContext.Provider value={{ user: null, token: null, isLoading: false, isAuthenticated: false, login, signup, logout }}>
+      <AuthContext.Provider value={{ user: null, token: null, isLoading: false, isAuthenticated: false, login, signup, googleLogin, logout }}>
         <div className="min-h-screen bg-[#030308] flex items-center justify-center">
           <div className="flex flex-col items-center gap-4">
             <p className="text-[10px] text-red-400 uppercase tracking-widest font-mono">
@@ -187,7 +207,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, isAuthenticated: !!user, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, token, isLoading, isAuthenticated: !!user, login, signup, googleLogin, logout }}>
       {children}
     </AuthContext.Provider>
   );

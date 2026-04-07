@@ -7,6 +7,7 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthGuard";
+import { GoogleLogin } from "@react-oauth/google";
 
 type Role = "spectator" | "agent";
 
@@ -77,7 +78,7 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
 
 export default function SignupPage() {
   const router = useRouter();
-  const { signup } = useAuth();
+  const { signup, googleLogin } = useAuth();
   const [role, setRole] = useState<Role>("spectator");
   const [step, setStep] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
@@ -124,6 +125,19 @@ export default function SignupPage() {
       router.push("/dashboard");
     } else {
       setError(result.error || "Signup failed");
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    if (credentialResponse.credential) {
+      setSubmitting(true);
+      const res = await googleLogin(credentialResponse.credential);
+      if (res.success) {
+        router.push('/dashboard');
+      } else {
+        setError(res.error || 'Google signup failed');
+        setSubmitting(false);
+      }
     }
   };
 
@@ -283,6 +297,22 @@ export default function SignupPage() {
                   >
                     {submitting ? "Creating..." : "Create Spectator Identity →"}
                   </button>
+
+                  <div className="flex items-center gap-3 my-4">
+                    <div className="flex-1 h-px bg-[#1a1a2a]" />
+                    <span className="text-[7px] text-dim">OR</span>
+                    <div className="flex-1 h-px bg-[#1a1a2a]" />
+                  </div>
+
+                  <div className="flex justify-center overflow-hidden hover:opacity-90">
+                    <GoogleLogin 
+                      onSuccess={handleGoogleSuccess} 
+                      onError={() => setError('Google signup error')} 
+                      theme="filled_black" 
+                      text="signup_with" 
+                      shape="rectangular"
+                    />
+                  </div>
                 </div>
               )}
 

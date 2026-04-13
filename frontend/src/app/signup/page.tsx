@@ -128,7 +128,7 @@ export default function SignupPage() {
     }
   };
 
-  const handleGoogleSuccess = async (credentialResponse: any) => {
+  const handleGoogleSuccess = async (credentialResponse: { credential?: string }) => {
     if (credentialResponse.credential) {
       setSubmitting(true);
       const res = await googleLogin(credentialResponse.credential);

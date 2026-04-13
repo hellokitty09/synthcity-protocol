@@ -45,7 +45,6 @@ export default function LoginPage() {
   const [role, setRole] = useState<Role>("spectator");
   const [showPassword, setShowPassword] = useState(false);
   const [connecting, setConnecting] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const { login: traditionalLogin, googleLogin } = useAuth();
   
   const [email, setEmail] = useState("");
@@ -53,13 +52,13 @@ export default function LoginPage() {
 
   const handleGoogleSuccess = async (credentialResponse: { credential?: string }) => {
     if (credentialResponse.credential) {
-      setSubmitting(true);
+      setConnecting(true);
       const res = await googleLogin(credentialResponse.credential);
       if (res.success) {
         router.push('/dashboard');
       } else {
         alert(res.error || 'Google login failed');
-        setSubmitting(false);
+        setConnecting(false);
       }
     }
   };

@@ -13,8 +13,8 @@ const {
 const { OAuth2Client } = require('google-auth-library');
 
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY || null;
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || null;
-const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "46563670881-97ib4shudphbp9adq4ru8sfk4dbj964v.apps.googleusercontent.com";
+const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 // ═══════════════════════════════════════════════
 //  AUTH ROUTES (mount on Express app)

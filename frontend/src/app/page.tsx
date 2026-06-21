@@ -28,7 +28,7 @@ function EyeIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
-    </svg>
+    </svg>                
   );
 }
 
@@ -63,13 +63,50 @@ export default function LoginPage() {
     }
   };
 
-  const handleWalletConnect = () => {
+  const handleWalletConnect = async () => {
+    if (typeof window === 'undefined' || !(window as any).ethereum) {
+      alert('No wallet detected. Please install MetaMask or another Web3 wallet.');
+      return;
+    }
     setConnecting(true);
-    setTimeout(() => {
-       setConnecting(false);
-       localStorage.setItem('synthcity_auth_token', 'agent_session');
-       router.push('/terminal');
-    }, 2000);
+    try {
+      const ethereum = (window as any).ethereum;
+      const accounts: string[] = await ethereum.request({ method: 'eth_requestAccounts' });
+      if (!accounts || accounts.length === 0) {
+        alert('No accounts found. Please unlock your wallet.');
+        setConnecting(false);
+        return;
+      }
+      const address = accounts[0];
+      const nonce = Date.now().toString(36) + Math.random().toString(36).slice(2);
+      const message = `Sign in to SynthCity\nAddress: ${address}\nNonce: ${nonce}`;
+      const signature = await ethereum.request({
+        method: 'personal_sign',
+        params: [message, address],
+      });
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const resp = await fetch(`${API_URL}/api/auth/wallet`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address, signature, message }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        alert(data.error || 'Wallet authentication failed');
+        setConnecting(false);
+        return;
+      }
+      localStorage.setItem('synthcity_auth_token', data.token);
+      localStorage.setItem('synthcity_user', JSON.stringify(data.user));
+      router.push('/terminal');
+    } catch (err: any) {
+      if (err.code === 4001) {
+        alert('Signature request was rejected.');
+      } else {
+        alert('Wallet connection failed: ' + (err.message || 'Unknown error'));
+      }
+      setConnecting(false);
+    }
   };
 
   const handleSpectatorLogin = async () => {

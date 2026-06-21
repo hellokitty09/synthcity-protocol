@@ -263,15 +263,16 @@ let landCache = [];
 let previousOwners = {};
 
 async function pollLandState() {
-    const newLand = [];
-    for (let tokenId = 1; tokenId <= GRID_SIZE; tokenId++) {
-        try {
-            const owner = await landRegistry.ownerOf(tokenId);
-            const coords = await landRegistry.plots(tokenId);
-            const assessed = await landRegistry.assessedValue(tokenId);
-            const reserve = await landRegistry.taxReserve(tokenId);
-
-            const plot = {
+    const tokenIds = Array.from({ length: GRID_SIZE }, (_, i) => i + 1);
+    const results = await Promise.allSettled(
+        tokenIds.map(async (tokenId) => {
+            const [owner, coords, assessed, reserve] = await Promise.all([
+                landRegistry.ownerOf(tokenId),
+                landRegistry.plots(tokenId),
+                landRegistry.assessedValue(tokenId),
+                landRegistry.taxReserve(tokenId),
+            ]);
+            return {
                 tokenId,
                 x: Number(coords.x),
                 y: Number(coords.y),
@@ -279,18 +280,24 @@ async function pollLandState() {
                 assessedValue: parseFloat(ethers.formatEther(assessed)),
                 taxReserve: parseFloat(ethers.formatEther(reserve)),
             };
-            newLand.push(plot);
+        })
+    );
 
-            const prevOwner = previousOwners[tokenId];
-            if (prevOwner && prevOwner.toLowerCase() !== owner.toLowerCase()) {
-                emitSSE('land:bought', {
-                    plotId: tokenId, oldOwner: prevOwner, newOwner: owner,
-                    price: plot.assessedValue, x: plot.x, y: plot.y,
-                });
-                cycleManager.logEvent(`Plot #${tokenId} seized by ${owner.slice(0, 8)}. Hostile Harberger takeover.`);
-            }
-            previousOwners[tokenId] = owner;
-        } catch (e) { /* Token may not exist */ }
+    const newLand = [];
+    for (const result of results) {
+        if (result.status !== 'fulfilled') continue;
+        const plot = result.value;
+        newLand.push(plot);
+
+        const prevOwner = previousOwners[plot.tokenId];
+        if (prevOwner && prevOwner.toLowerCase() !== plot.owner.toLowerCase()) {
+            emitSSE('land:bought', {
+                plotId: plot.tokenId, oldOwner: prevOwner, newOwner: plot.owner,
+                price: plot.assessedValue, x: plot.x, y: plot.y,
+            });
+            cycleManager.logEvent(`Plot #${plot.tokenId} seized by ${plot.owner.slice(0, 8)}. Hostile Harberger takeover.`);
+        }
+        previousOwners[plot.tokenId] = plot.owner;
     }
     landCache = newLand;
 }
@@ -306,24 +313,37 @@ async function pollLandState() {
 // ═══════════════════════════════════════════════
 
 // Agent private keys — MUST be set via env in production.
-// Anvil defaults are only for local development.
-const SOVEREIGN_AGENTS = [
+// If keys are not provided, agents are skipped entirely (no insecure defaults).
+const SOVEREIGN_AGENTS_RAW = [
     {
-        key: process.env.AGENT_1_KEY || '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d',
+        key: process.env.AGENT_1_KEY || null,
         faction: process.env.AGENT_1_FACTION || 'Neon Syndicate',
         style: process.env.AGENT_1_STYLE || 'macro',
         description: 'Macro analyst — weights Fear & Greed, VIX proxy, yield curve signals',
     },
     {
-        key: process.env.AGENT_2_KEY || '0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a',
+        key: process.env.AGENT_2_KEY || null,
         faction: process.env.AGENT_2_FACTION || 'Obsidian Core',
         style: process.env.AGENT_2_STYLE || 'geopolitical',
         description: 'Geopolitical analyst — weights conflict zones, military posture, sanctions',
     }
 ];
+const SOVEREIGN_AGENTS = SOVEREIGN_AGENTS_RAW.filter(a => {
+    if (!a.key) {
+        console.warn(`[Boot] ⚠️  Agent "${a.faction}" skipped — no private key set in env.`);
+        return false;
+    }
+    return true;
+});
 
 // Track per-agent prediction history for the UI
 const agentAnalysisLog = new Map(); // addr -> [{ cycle, domain, result }]
+
+// Pre-compute agent addresses to avoid creating Wallet instances in hot request paths
+const agentAddressMap = new Map();
+for (const a of SOVEREIGN_AGENTS) {
+    agentAddressMap.set(a.key, new ethers.Wallet(a.key).address);
+}
 
 // ═══════════════════════════════════════════════
 //  AUTO-AGENT CYCLE (INTELLIGENCE-DRIVEN)
@@ -408,14 +428,7 @@ async function runAutoAgentCycle() {
         // 2. Add independent agents (simpler analysis)
         // (Removed to exclusively run the 2 Sovereign LLM agents)
 
-        // 3. Override actual volatility with REAL market data
-        const originalGetActualVolatility = cycleManager.getActualVolatility.bind(cycleManager);
-        cycleManager.getActualVolatility = async (domain) => {
-            if (priceCache[domain] && priceCache[domain].volatility > 0) {
-                return priceCache[domain].volatility;
-            }
-            return originalGetActualVolatility(domain);
-        };
+        // 3. Actual volatility override is wired once at boot (see boot function)
 
         // 4. Settle cycle
         await cycleManager.settleCycle();
@@ -553,8 +566,7 @@ app.get('/api/agents', (req, res) => {
         const pred = cycleManager.predictions.get(addr);
         const ownedPlots = landCache.filter(p => p.owner.toLowerCase() === addr.toLowerCase());
         const agentDef = SOVEREIGN_AGENTS.find(a => {
-            const w = new ethers.Wallet(a.key);
-            return w.address.toLowerCase() === addr.toLowerCase();
+            return (agentAddressMap.get(a.key) || '').toLowerCase() === addr.toLowerCase();
         });
 
         agents.push({
@@ -579,8 +591,7 @@ app.get('/api/leaderboard', async (req, res) => {
         try { balance = ethers.formatEther(await synthToken.balanceOf(addr)); } catch (e) {}
         const pred = cycleManager.predictions.get(addr);
         const agentDef = SOVEREIGN_AGENTS.find(a => {
-            const w = new ethers.Wallet(a.key);
-            return w.address.toLowerCase() === addr.toLowerCase();
+            return (agentAddressMap.get(a.key) || '').toLowerCase() === addr.toLowerCase();
         });
 
         agents.push({
@@ -607,6 +618,53 @@ app.get('/api/domains', (req, res) => {
         updatedAt: priceCache[d]?.updatedAt || null,
     }));
     res.json({ domains });
+});
+
+// Dynamic domains from DomainManager contract (Issue #12)
+app.get('/api/domains/onchain', async (req, res) => {
+    if (!domainManager) {
+        return res.json({
+            domains: cycleManager.activeDomains,
+            source: 'static',
+            message: 'DomainManager contract not configured. Using static domain list.',
+        });
+    }
+
+    try {
+        const domainKeys = ['ETH/USD', 'BTC/USD', 'SOL/USD', 'XAU/USD', 'EUR/USD'];
+        const onchainDomains = [];
+
+        for (const key of domainKeys) {
+            const keyHash = ethers.id(key);
+            const domainData = await safeChainCall(
+                () => domainManager.domains(keyHash),
+                null
+            );
+            if (domainData && domainData.active) {
+                onchainDomains.push({
+                    key,
+                    name: domainData.name,
+                    oracle: domainData.oracle,
+                    cycleDuration: Number(domainData.cycleDuration),
+                    active: domainData.active,
+                });
+            }
+        }
+
+        // Update active domains if we got on-chain data
+        if (onchainDomains.length > 0) {
+            const newDomains = onchainDomains.map(d => d.key);
+            cycleManager.activeDomains = newDomains;
+        }
+
+        res.json({
+            domains: onchainDomains.length > 0 ? onchainDomains : cycleManager.activeDomains,
+            source: onchainDomains.length > 0 ? 'onchain' : 'static',
+        });
+    } catch (e) {
+        console.warn(`[Domains] On-chain fetch failed: ${e.message}`);
+        res.json({ domains: cycleManager.activeDomains, source: 'static' });
+    }
 });
 
 app.get('/api/chronicle', (req, res) => {
@@ -794,15 +852,44 @@ app.post('/api/markets/intel/buy', requireAuth, (req, res) => {
 });
 
 // ═══════════════════════════════════════════════
-//  EXTERNAL PREDICTION ENDPOINT
+//  PREDICTION ENDPOINTS (Commit-Reveal)
 // ═══════════════════════════════════════════════
 
+// Phase 1: Commit — submit only the hash
+app.post('/api/predict/commit', requireAuth, (req, res) => {
+    const { agentAddr, commitHash } = req.body;
+    if (!agentAddr || !commitHash) {
+        return res.status(400).json({ error: 'agentAddr and commitHash are required' });
+    }
+    const ok = cycleManager.commitPrediction(agentAddr, commitHash);
+    res.json({ accepted: ok });
+});
+
+// Phase 2: Reveal — submit predictions + salt, verified against commitment
+app.post('/api/predict/reveal', requireAuth, (req, res) => {
+    const { agentAddr, predictions, salt, benchmarkResult, faction } = req.body;
+    if (!agentAddr || !predictions || typeof predictions !== 'object' || !salt) {
+        return res.status(400).json({ error: 'agentAddr, predictions, and salt are required' });
+    }
+    for (const [domain, val] of Object.entries(predictions)) {
+        if (typeof val !== 'number' || val < 0 || val > 200) {
+            return res.status(400).json({ error: `Invalid prediction for ${domain}: must be 0-200` });
+        }
+    }
+    const result = cycleManager.revealPrediction(agentAddr, predictions, salt, benchmarkResult, faction || 'Independent');
+    if (result.success) {
+        emitSSE('agent:predicted', { agent: agentAddr.slice(0, 10), faction, domains: Object.keys(predictions) });
+    }
+    res.json(result);
+});
+
+// Backward-compatible: does commit+reveal in one shot (logs deprecation)
 app.post('/api/predict', requireAuth, (req, res) => {
+    console.warn('[DEPRECATION] POST /api/predict is deprecated. Use /api/predict/commit + /api/predict/reveal');
     const { agentAddr, predictions, salt, benchmarkResult, faction } = req.body;
     if (!agentAddr || !predictions || typeof predictions !== 'object') {
         return res.status(400).json({ error: 'Missing or invalid agentAddr/predictions' });
     }
-    // Validate prediction values are numbers
     for (const [domain, val] of Object.entries(predictions)) {
         if (typeof val !== 'number' || val < 0 || val > 200) {
             return res.status(400).json({ error: `Invalid prediction for ${domain}: must be 0-200` });
@@ -813,6 +900,44 @@ app.post('/api/predict', requireAuth, (req, res) => {
         emitSSE('agent:predicted', { agent: agentAddr.slice(0, 10), faction, domains: Object.keys(predictions) });
     }
     res.json({ accepted: ok });
+});
+
+// ═══════════════════════════════════════════════
+//  CONSENSUS ENDPOINT (REQ-004)
+// ═══════════════════════════════════════════════
+
+app.get('/api/consensus', (req, res) => {
+    const consensus = {};
+    for (const domain of cycleManager.activeDomains) {
+        let weightedSum = 0;
+        let totalWeight = 0;
+        let agentCount = 0;
+        let bullishCount = 0;
+        let bearishCount = 0;
+
+        for (const [addr, data] of cycleManager.predictions.entries()) {
+            const vol = data.predictionsByDomain?.[domain];
+            if (vol === undefined) continue;
+
+            const reputation = cycleManager.reputations.get(addr) || 50;
+            weightedSum += vol * reputation;
+            totalWeight += reputation;
+            agentCount++;
+
+            const priceData = priceCache[domain];
+            if (priceData && priceData.change24h > 0) bullishCount++;
+            else bearishCount++;
+        }
+
+        consensus[domain] = {
+            weightedVolatility: totalWeight > 0 ? parseFloat((weightedSum / totalWeight).toFixed(2)) : null,
+            confidence: totalWeight > 0 ? parseFloat((totalWeight / (agentCount * 100)).toFixed(2)) : 0,
+            agentCount,
+            dominantBias: bullishCount > bearishCount ? 'bullish' : bearishCount > bullishCount ? 'bearish' : 'neutral',
+            actualVolatility: priceCache[domain]?.volatility || null,
+        };
+    }
+    res.json({ cycle: cycleManager.currentCycle, consensus });
 });
 
 app.post('/api/settle', requireAdmin, async (req, res) => {
@@ -876,6 +1001,16 @@ async function boot() {
     // Mount auth routes
     mountAuthRoutes(app);
     console.log('[Boot] Auth system initialized (signup/login/session)');
+
+    // Wire actual volatility override ONCE — uses real market data when available
+    const originalGetActualVolatility = cycleManager.getActualVolatility.bind(cycleManager);
+    cycleManager.getActualVolatility = async (domain) => {
+        if (priceCache[domain] && priceCache[domain].volatility > 0) {
+            return priceCache[domain].volatility;
+        }
+        return originalGetActualVolatility(domain);
+    };
+    console.log('[Boot] Volatility override wired (real market data → cycle manager)');
 
     // Restore state from DB
     try {

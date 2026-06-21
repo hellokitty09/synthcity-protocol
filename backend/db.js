@@ -129,6 +129,10 @@ function getUserById(id) {
     return db.prepare('SELECT id, email, display_name, role, wallet_address, faction, model_id, domains, created_at FROM users WHERE id = ?').get(id);
 }
 
+function getUserByWallet(walletAddress) {
+    return db.prepare('SELECT * FROM users WHERE LOWER(wallet_address) = LOWER(?)').get(walletAddress);
+}
+
 // ═══════════════════════════════════════════════
 //  SESSION HELPERS
 // ═══════════════════════════════════════════════
@@ -260,6 +264,7 @@ module.exports = {
     createUser,
     getUserByEmail,
     getUserById,
+    getUserByWallet,
     // Sessions
     createSession,
     getSession,

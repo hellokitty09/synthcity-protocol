@@ -10,15 +10,22 @@ class CycleManager {
     constructor() {
         this.provider = new ethers.JsonRpcProvider(process.env.BASE_SEPOLIA_RPC || 'http://127.0.0.1:8545');
         this.synthTokenAddress = process.env.SYNTH_TOKEN_ADDR || '0x5fbdb2315678afecb367f032d93f642f64180aa3';
-        const treasuryKey = process.env.TREASURY_KEY || '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
-        this.treasuryWallet = new ethers.Wallet(treasuryKey, this.provider);
-        this.synthToken = new ethers.Contract(this.synthTokenAddress, ['function mint(address to, uint256 amount) external'], this.treasuryWallet);
+        const treasuryKey = process.env.TREASURY_KEY || null;
+        if (!treasuryKey) {
+            console.warn('[CycleManager] ⚠️  TREASURY_KEY not set. On-chain reward minting is disabled.');
+            this.treasuryWallet = null;
+            this.synthToken = null;
+        } else {
+            this.treasuryWallet = new ethers.Wallet(treasuryKey, this.provider);
+            this.synthToken = new ethers.Contract(this.synthTokenAddress, ['function mint(address to, uint256 amount) external'], this.treasuryWallet);
+        }
         // Multi-Domain Market specific
         this.activeDomains = ['ETH/USD', 'XAU/USD', 'EUR/USD'];
         
         // Mock data for Phase 1/2
         this.currentCycle = 1;
         this.predictions = new Map(); // agentAddr -> { commitment, predictionsByDomain, salt }
+        this.commitments = new Map(); // agentAddr -> { commitHash, timestamp } (commit-reveal Phase 1)
         this.reputations = new Map(); // agentAddr -> score (0-100)
         
         // Oracle Front-Running Protection
@@ -78,7 +85,52 @@ class CycleManager {
     }
 
     /**
+     * @dev Phase 1 Commit-Reveal: Accept a hash commitment (commit phase).
+     */
+    commitPrediction(agentAddr, commitHash) {
+        const now = Date.now();
+        const cycleElapsed = now - this.cycleStartTime;
+
+        if (cycleElapsed > (this.cycleDurationMs - this.deadZoneDurationMs)) {
+            console.error(`[Cycle ${this.currentCycle}] REJECTED COMMIT: Agent ${agentAddr} attempted to commit in the Dead Zone.`);
+            return false;
+        }
+
+        this.commitments.set(agentAddr, { commitHash, timestamp: now });
+        console.log(`[Cycle ${this.currentCycle}] Commitment received from ${agentAddr}`);
+        return true;
+    }
+
+    /**
+     * @dev Phase 1 Commit-Reveal: Verify and accept a revealed prediction (reveal phase).
+     */
+    revealPrediction(agentAddr, predictionsByDomain, salt, benchmarkResult = null, faction = 'Independent') {
+        const commitment = this.commitments.get(agentAddr);
+        if (!commitment) {
+            console.error(`[Cycle ${this.currentCycle}] REVEAL REJECTED: No commitment found for ${agentAddr}`);
+            return { success: false, error: 'No commitment found. Submit a commit first.' };
+        }
+
+        // Verify the reveal matches the commitment
+        const hashablePayload = Math.round((predictionsByDomain['ETH/USD'] || 0) * 100);
+        const expectedHash = ethers.keccak256(
+            ethers.solidityPacked(['uint256', 'string'], [hashablePayload, salt])
+        );
+
+        if (expectedHash !== commitment.commitHash) {
+            console.error(`[Cycle ${this.currentCycle}] REVEAL REJECTED: Hash mismatch for ${agentAddr}`);
+            return { success: false, error: 'Reveal does not match commitment hash.' };
+        }
+
+        // Commitment verified — register the prediction
+        this.commitments.delete(agentAddr);
+        const ok = this.submitPrediction(agentAddr, predictionsByDomain, salt, benchmarkResult, faction);
+        return { success: ok, error: ok ? null : 'Prediction rejected (dead zone or validation failure).' };
+    }
+
+    /**
      * @dev Register a prediction for an agent across multiple domains.
+     *      Also serves as the internal path for auto-agents (bypasses commit-reveal).
      */
     submitPrediction(agentAddr, predictionsByDomain, salt, benchmarkResult = null, faction = 'Independent', timestampOverride = null) {
         const now = timestampOverride || Date.now();
@@ -281,7 +333,7 @@ class CycleManager {
         }
 
         // On-chain Reward Minting
-        if (highestAccuracyAgent && highestAgentAcc >= 80) {
+        if (highestAccuracyAgent && highestAgentAcc >= 80 && this.synthToken) {
             console.log(`\n💎 REWARD: Submitting on-chain transaction to mint SYNTH for ${highestAccuracyAgent}...`);
             try {
                 // Award 150 SYNTH tokens for the top winning agent
@@ -292,6 +344,8 @@ class CycleManager {
             } catch(e) {
                 console.error(`   -> FAILED to mint SYNTH: ${e.message}`);
             }
+        } else if (highestAccuracyAgent && highestAgentAcc >= 80 && !this.synthToken) {
+            console.warn(`[CycleManager] Skipping reward mint — TREASURY_KEY not configured.`);
         }
 
         this.currentCycle++;

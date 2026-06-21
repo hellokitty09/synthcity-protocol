@@ -7,14 +7,23 @@
 
 const {
     createUser, getUserByEmail, getUserById,
+    getUserByWallet,
     createSession, getSession, deleteSession,
     verifyPassword,
 } = require('./db');
 const { OAuth2Client } = require('google-auth-library');
+const { ethers } = require('ethers');
 
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY || null;
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "46563670881-97ib4shudphbp9adq4ru8sfk4dbj964v.apps.googleusercontent.com";
-const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
+if (!ADMIN_API_KEY) {
+    console.warn('[Auth] ⚠️  ADMIN_API_KEY is not set. POST /api/settle will be disabled.');
+}
+
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "268233101037-3idedvdoi6s6lcjgsqm251nh3nbc16ss.apps.googleusercontent.com";
+const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
+if (!GOOGLE_CLIENT_ID) {
+    console.warn('[Auth] ⚠️  GOOGLE_CLIENT_ID is not set. Google Sign-In will be disabled.');
+}
 
 // ═══════════════════════════════════════════════
 //  AUTH ROUTES (mount on Express app)
@@ -134,7 +143,7 @@ function mountAuthRoutes(app) {
     app.post('/api/auth/google', async (req, res) => {
         try {
             if (!googleClient) {
-                return res.status(501).json({ error: 'Google Sign-In not configured' });
+                return res.status(501).json({ error: 'Google Sign-In not configured. Set GOOGLE_CLIENT_ID env var.' });
             }
 
             const { credential } = req.body;
@@ -180,6 +189,63 @@ function mountAuthRoutes(app) {
         } catch (e) {
             console.error('[Auth] Google sign-in error:', e.message);
             res.status(401).json({ error: 'Invalid Google token' });
+        }
+    });
+
+    /**
+     * POST /api/auth/wallet
+     * Body: { address, signature, message }
+     * Verifies wallet ownership via signed message, creates/finds user, returns session.
+     */
+    app.post('/api/auth/wallet', (req, res) => {
+        try {
+            const { address, signature, message } = req.body;
+            if (!address || !signature || !message) {
+                return res.status(400).json({ error: 'address, signature, and message are required' });
+            }
+
+            // Verify the signature recovers to the claimed address
+            let recoveredAddress;
+            try {
+                recoveredAddress = ethers.verifyMessage(message, signature);
+            } catch (e) {
+                return res.status(400).json({ error: 'Invalid signature format' });
+            }
+
+            if (recoveredAddress.toLowerCase() !== address.toLowerCase()) {
+                return res.status(401).json({ error: 'Signature does not match address' });
+            }
+
+            // Find or create user by wallet address
+            let user = getUserByWallet(address);
+            if (!user) {
+                // Auto-register wallet users as agents
+                const userId = createUser({
+                    email: `${address.toLowerCase()}@wallet.synthcity`,
+                    password: require('crypto').randomBytes(32).toString('hex'),
+                    displayName: `Agent ${address.slice(0, 6)}...${address.slice(-4)}`,
+                    role: 'agent',
+                    walletAddress: address,
+                });
+                user = getUserById(userId);
+            }
+
+            const session = createSession(user.id, user.role);
+
+            res.json({
+                token: session.token,
+                expiresAt: session.expiresAt,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    displayName: user.display_name,
+                    role: user.role,
+                    walletAddress: user.wallet_address,
+                },
+            });
+        } catch (e) {
+            console.error('[Auth] Wallet auth error:', e.message);
+            res.status(500).json({ error: 'Internal server error' });
         }
     });
 
@@ -245,8 +311,7 @@ function requireAgent(req, res, next) {
  */
 function requireAdmin(req, res, next) {
     if (!ADMIN_API_KEY) {
-        // If no admin key configured, fall back to requiring any auth
-        return requireAuth(req, res, next);
+        return res.status(503).json({ error: 'Admin API key not configured. Set ADMIN_API_KEY env var.' });
     }
     const key = req.headers['x-admin-key'] || req.query.adminKey;
     if (key !== ADMIN_API_KEY) {

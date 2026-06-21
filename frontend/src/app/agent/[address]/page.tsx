@@ -23,7 +23,7 @@ function StatBox({ label, value, color }: { label: string; value: string; color:
   );
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://synthcity-api.onrender.com";
 
 export default function AgentProfilePage() {
   const params = useParams();

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useProtocol } from "@/lib/useProtocol";
 
-const API_BASE = "http://localhost:4000/api";
+const API_BASE = "https://synthcity-api.onrender.com/api";
 
 export default function MarketsPage() {
   const { spectatorBalance, unlockIntel, agents } = useProtocol();

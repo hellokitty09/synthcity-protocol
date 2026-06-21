@@ -116,7 +116,7 @@ export default function LoginPage() {
   const handleSpectatorLogin = async () => {
      if(!email || !password) return alert("Email and password required.");
      setConnecting(true);
-     const res = await login(email, password);
+     const res = await traditionalLogin(email, password);
      if(res.success) {
        startTransition(() => {
          router.push('/dashboard');

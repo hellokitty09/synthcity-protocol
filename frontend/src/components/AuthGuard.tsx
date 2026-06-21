@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, createContext, useContext, useCallback } from "react";
+import { useEffect, useState, createContext, useContext, useCallback, startTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 // ═══════════════════════════════════════════════
@@ -96,7 +96,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!mounted || isLoading) return;
     if (!PUBLIC_ROUTES.includes(pathname) && !user) {
-      router.replace("/");
+      startTransition(() => {
+        router.replace("/");
+      });
     }
   }, [mounted, isLoading, user, pathname, router]);
 

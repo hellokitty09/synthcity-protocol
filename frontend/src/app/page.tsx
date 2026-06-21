@@ -2,7 +2,7 @@
 // @ts-nocheck
 "use client";
 
-import { useState } from "react";
+import { useState, startTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -55,7 +55,9 @@ export default function LoginPage() {
       setConnecting(true);
       const res = await googleLogin(credentialResponse.credential);
       if (res.success) {
-        router.push('/dashboard');
+        startTransition(() => {
+          router.push('/dashboard');
+        });
       } else {
         alert(res.error || 'Google login failed');
         setConnecting(false);
@@ -98,7 +100,9 @@ export default function LoginPage() {
       }
       localStorage.setItem('synthcity_auth_token', data.token);
       localStorage.setItem('synthcity_user', JSON.stringify(data.user));
-      router.push('/terminal');
+      startTransition(() => {
+        router.push('/terminal');
+      });
     } catch (err: any) {
       if (err.code === 4001) {
         alert('Signature request was rejected.');
@@ -112,8 +116,12 @@ export default function LoginPage() {
   const handleSpectatorLogin = async () => {
      if(!email || !password) return alert("Email and password required.");
      setConnecting(true);
-     const res = await traditionalLogin(email, password);
-     if(res.success) router.push('/dashboard');
+     const res = await login(email, password);
+     if(res.success) {
+       startTransition(() => {
+         router.push('/dashboard');
+       });
+     }
      else {
        alert(res.error || "Login fail");
        setConnecting(false);

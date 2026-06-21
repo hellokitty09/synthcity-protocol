@@ -41,7 +41,7 @@ export interface LandPlot {
   lastTaxPaidAt: number;
 }
 
-const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || 'https://synthcity-api.onrender.com'}/api`;
+const API_BASE = "https://synthcity-api.onrender.com/api";
 
 export function useProtocolData() {
   const [state, setState] = useState<ProtocolState | null>(null);

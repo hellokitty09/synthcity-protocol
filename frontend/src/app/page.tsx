@@ -84,7 +84,7 @@ export default function LoginPage() {
         method: 'personal_sign',
         params: [message, address],
       });
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://synthcity-api.onrender.com';
+      const API_URL = 'https://synthcity-api.onrender.com';
       const resp = await fetch(`${API_URL}/api/auth/wallet`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -52,7 +52,7 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://synthcity-api.onrender.com";
+const API_URL = "https://synthcity-api.onrender.com";
 
 // White-listed routes that do not require authentication
 const PUBLIC_ROUTES = ["/", "/signup", "/login"];

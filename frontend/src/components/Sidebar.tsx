@@ -21,11 +21,6 @@ export function Sidebar() {
   const [open, setOpen] = useState(false);
   const { state, isLive } = useProtocol();
 
-  // Hide on auth pages entirely
-  if (pathname === "/" || pathname === "/signup") {
-    return null;
-  }
-
   // Close sidebar on navigation
   useEffect(() => {
     setOpen(false);
@@ -39,6 +34,11 @@ export function Sidebar() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, []);
+
+  // Hide on auth pages entirely
+  if (pathname === "/" || pathname === "/signup") {
+    return null;
+  }
 
   const STATS = state ? [
     { label: "Epoch", value: String(state.epoch).padStart(2, "0") },

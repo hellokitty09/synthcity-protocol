@@ -17,7 +17,7 @@ const app = express();
 //  PRODUCTION MIDDLEWARE
 // ═══════════════════════════════════════════════
 
-const CORS_RAW = process.env.CORS_ORIGINS || 'http://localhost:3000';
+const CORS_RAW = process.env.CORS_ORIGINS || 'http://localhost:3000,https://synthcity-omega.vercel.app,https://frontend-iota-pearl-84.vercel.app';
 const corsOptions = CORS_RAW === '*'
     ? { origin: true, credentials: true }  // reflect request origin
     : { origin: CORS_RAW.split(',').map(s => s.trim()), credentials: true };
